@@ -11,56 +11,24 @@
 import React, {useEffect, useState} from 'react';
 import {
   Button,
+  Picker,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   useColorScheme,
   View,
 } from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+import {Colors} from 'react-native/Libraries/NewAppScreen';
 
 import RNCalendarEvents, {
   CalendarOptions,
   Calendar,
 } from 'react-native-calendar-events';
 import dayjs from 'dayjs';
-
-const Section: React.FC<{
-  title: string;
-}> = ({children, title}) => {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-};
 
 const calendar: CalendarOptions = {
   accessLevel: 'root',
@@ -70,12 +38,6 @@ const calendar: CalendarOptions = {
   ownerAccount: 'Bibazavr',
   source: {name: 'Bibazavr', isLocalAccount: true},
   title: 'work',
-};
-
-const saveCalendar = () => {
-  RNCalendarEvents.saveCalendar(calendar).then(r => {
-    console.log('saveCalendar', r);
-  });
 };
 
 const deleteCalendar = (id?: string) => {
@@ -95,33 +57,44 @@ const saveEvent = (calendarId: string, startData: string, endData: string) => {
   });
 };
 
-type IWorkEvent = 'day' | 'night' | 'sleep' | 'weekend';
+enum STRINGS {
+  day = 'day',
+  night = 'night',
+  sleep = 'sleep',
+  weekend = 'weekend',
+}
 
-const detectDate = (calendarId?: string, today: IWorkEvent = 'day') => {
+type IWorkEvent = STRINGS.day | STRINGS.night | STRINGS.sleep | STRINGS.weekend;
+
+const detectDate = (
+  calendarId: string,
+  daysCount: number,
+  today: IWorkEvent = STRINGS.day,
+) => {
   if (!calendarId) {
     return;
   }
   let now = dayjs().format('YYYY-MM-DD');
 
   let nextEvent: IWorkEvent = today;
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < daysCount; i++) {
     const morning = dayjs(now).add(8, 'hour').toISOString();
     const evening = dayjs(now).add(20, 'hour').toISOString();
     switch (nextEvent) {
       case 'day': {
         saveEvent(calendarId, morning, evening);
-        nextEvent = 'night';
+        nextEvent = STRINGS.night;
         break;
       }
       case 'night':
         saveEvent(calendarId, evening, morning);
-        nextEvent = 'sleep';
+        nextEvent = STRINGS.sleep;
         break;
       case 'sleep':
-        nextEvent = 'weekend';
+        nextEvent = STRINGS.weekend;
         break;
       case 'weekend':
-        nextEvent = 'day';
+        nextEvent = STRINGS.day;
         break;
       default:
         break;
@@ -132,13 +105,15 @@ const detectDate = (calendarId?: string, today: IWorkEvent = 'day') => {
 
 const App = () => {
   const isDarkMode = useColorScheme() === 'dark';
-
-  const [lastCalendar, setLastCalendar] = useState<Calendar | null>(null);
-
   const backgroundStyle = {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
   };
 
+  const [lastCalendar, setLastCalendar] = useState<Calendar | null>(null);
+  const [days, setDays] = useState('20');
+  const [today, setToday] = useState(STRINGS.day);
+
+  const allGood = lastCalendar?.source === 'Bibazavr';
   useEffect(() => {
     RNCalendarEvents.checkPermissions().then(r => {
       console.log('checkPermissions', r);
@@ -163,6 +138,7 @@ const App = () => {
           <Text>{JSON.stringify(lastCalendar)}</Text>
           <Button
             title={'save calendar'}
+            disabled={allGood}
             onPress={() => {
               RNCalendarEvents.saveCalendar(calendar).then(r => {
                 console.log('saveCalendar', r);
@@ -175,15 +151,36 @@ const App = () => {
           />
           <Button
             title={'save event'}
-            onPress={() => detectDate(lastCalendar?.id)}
+            disabled={!allGood}
+            onPress={() => {
+              lastCalendar && detectDate(lastCalendar.id, ~~days, today);
+            }}
           />
           <Button
             title={'delete calendar'}
+            disabled={!allGood}
             onPress={() => {
               deleteCalendar(lastCalendar?.id);
               setLastCalendar(null);
             }}
           />
+          <Text>На какое количество дней добавлять:</Text>
+          <TextInput
+            value={days}
+            keyboardType={'numeric'}
+            onChangeText={setDays}
+          />
+          <Text>Сегодня день, ночь, отсыпной или выходной?</Text>
+          <Picker
+            onValueChange={itemValue => {
+              setToday(itemValue);
+            }}
+            selectedValue={today}>
+            <Picker.Item label={'день'} value={STRINGS.day} />
+            <Picker.Item label={'ночь'} value={STRINGS.night} />
+            <Picker.Item label={'отсыпной'} value={STRINGS.sleep} />
+            <Picker.Item label={'выходной'} value={STRINGS.weekend} />
+          </Picker>
         </View>
       </ScrollView>
     </SafeAreaView>
