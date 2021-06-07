@@ -114,14 +114,23 @@ const App = () => {
   const [today, setToday] = useState(STRINGS.day);
 
   const allGood = lastCalendar?.source === 'Bibazavr';
-  useEffect(() => {
-    RNCalendarEvents.checkPermissions().then(r => {
-      console.log('checkPermissions', r);
-    });
 
-    RNCalendarEvents.findCalendars().then(r => {
-      console.log('findCalendars', r);
-      setLastCalendar(r[r.length - 1]);
+  useEffect(() => {
+    const loading = async () => {
+      const permission = await RNCalendarEvents.checkPermissions();
+
+      if (permission !== 'authorized') {
+        await RNCalendarEvents.requestPermissions();
+      }
+
+      RNCalendarEvents.findCalendars().then(r => {
+        console.log('findCalendars', r);
+        setLastCalendar(r[r.length - 1]);
+      });
+    };
+
+    loading().then(r => {
+      console.log('loading done', r);
     });
   }, []);
 
