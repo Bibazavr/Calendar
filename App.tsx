@@ -8,7 +8,7 @@
  * @format
  */
 
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   Button,
   SafeAreaView,
@@ -28,7 +28,11 @@ import {
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
 
-import RNCalendarEvents, {CalendarOptions} from 'react-native-calendar-events';
+import RNCalendarEvents, {
+  CalendarOptions,
+  Calendar,
+} from 'react-native-calendar-events';
+import dayjs from 'dayjs';
 
 const Section: React.FC<{
   title: string;
@@ -74,10 +78,62 @@ const saveCalendar = () => {
   });
 };
 
-const saveEvent = () => {};
+const deleteCalendar = (id?: string) => {
+  id &&
+    RNCalendarEvents.removeCalendar(id).then(r => {
+      console.log('deleteCalendar', r);
+    });
+};
+
+const saveEvent = (calendarId: string, startData: string, endData: string) => {
+  RNCalendarEvents.saveEvent('Work', {
+    calendarId: calendarId,
+    startDate: startData,
+    endDate: endData,
+  }).then(r => {
+    console.log('saveEvent', r);
+  });
+};
+
+type IWorkEvent = 'day' | 'night' | 'sleep' | 'weekend';
+
+const detectDate = (calendarId?: string, today: IWorkEvent = 'day') => {
+  if (!calendarId) {
+    return;
+  }
+  let now = dayjs().format('YYYY-MM-DD');
+
+  let nextEvent: IWorkEvent = today;
+  for (let i = 0; i < 24; i++) {
+    const morning = dayjs(now).add(8, 'hour').toISOString();
+    const evening = dayjs(now).add(20, 'hour').toISOString();
+    switch (nextEvent) {
+      case 'day': {
+        saveEvent(calendarId, morning, evening);
+        nextEvent = 'night';
+        break;
+      }
+      case 'night':
+        saveEvent(calendarId, evening, morning);
+        nextEvent = 'sleep';
+        break;
+      case 'sleep':
+        nextEvent = 'weekend';
+        break;
+      case 'weekend':
+        nextEvent = 'day';
+        break;
+      default:
+        break;
+    }
+    now = dayjs(now).add(1, 'day').format('YYYY-MM-DD');
+  }
+};
 
 const App = () => {
   const isDarkMode = useColorScheme() === 'dark';
+
+  const [lastCalendar, setLastCalendar] = useState<Calendar | null>(null);
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
@@ -90,6 +146,7 @@ const App = () => {
 
     RNCalendarEvents.findCalendars().then(r => {
       console.log('findCalendars', r);
+      setLastCalendar(r[r.length - 1]);
     });
   }, []);
 
@@ -103,8 +160,30 @@ const App = () => {
           style={{
             backgroundColor: isDarkMode ? Colors.black : Colors.white,
           }}>
-          <Button title={'save calendar'} onPress={saveCalendar} />
-          <Button title={'save event'} onPress={saveEvent} />
+          <Text>{JSON.stringify(lastCalendar)}</Text>
+          <Button
+            title={'save calendar'}
+            onPress={() => {
+              RNCalendarEvents.saveCalendar(calendar).then(r => {
+                console.log('saveCalendar', r);
+                RNCalendarEvents.findCalendars().then(find => {
+                  console.log('findCalendars', find);
+                  setLastCalendar(find[find.length - 1]);
+                });
+              });
+            }}
+          />
+          <Button
+            title={'save event'}
+            onPress={() => detectDate(lastCalendar?.id)}
+          />
+          <Button
+            title={'delete calendar'}
+            onPress={() => {
+              deleteCalendar(lastCalendar?.id);
+              setLastCalendar(null);
+            }}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
